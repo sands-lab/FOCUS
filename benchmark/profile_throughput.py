@@ -26,25 +26,56 @@ os.environ['TM_LOG_LEVEL'] = 'ERROR'
 
 DatasetFormat = str
 DEFAULT_HF_SHUFFLE_BUFFER_SIZE = 100_000
+GSM8K_DATASET_ID = 'openai/gsm8k'
+GSM8K_DEFAULT_CONFIG = 'main'
+GSM8K_SUPPORTED_SPLIT = 'test'
+GSM8K_FALLBACK_SPLIT = 'validation'
+
+
+def _is_gsm8k_dataset(dataset_id: str) -> bool:
+    return dataset_id.strip().lower() == GSM8K_DATASET_ID
+
+
+def _get_hf_split_candidates(dataset_id: str, split: str) -> Tuple[str, ...]:
+    if not _is_gsm8k_dataset(dataset_id):
+        return (split, )
+    if split == GSM8K_SUPPORTED_SPLIT:
+        return (GSM8K_SUPPORTED_SPLIT, GSM8K_FALLBACK_SPLIT)
+    if split == GSM8K_FALLBACK_SPLIT:
+        return (GSM8K_FALLBACK_SPLIT, GSM8K_SUPPORTED_SPLIT)
+    return (split, )
+
+
+def _resolve_math_prompt_and_solution(example: Dict[str, Any],
+                                      prompt_keys: Tuple[str, ...],
+                                      solution_keys: Tuple[str, ...]) -> Optional[Tuple[str, str]]:
+    prompt = next((example.get(key) for key in prompt_keys if example.get(key) is not None), None)
+    solution = next((example.get(key) for key in solution_keys if example.get(key) is not None), None)
+    if prompt is None or solution is None:
+        return None
+    prompt_text = str(prompt).strip()
+    solution_text = str(solution).strip()
+    if not prompt_text or not solution_text:
+        return None
+    return prompt_text, solution_text
 
 
 def _looks_like_math(example: Dict[str, Any]) -> bool:
     if not isinstance(example, dict):
         return False
-    if 'problem' not in example:
-        return False
-    return 'solution' in example or 'answer' in example
+    return _resolve_math_prompt_and_solution(example,
+                                             prompt_keys=('problem', 'question'),
+                                             solution_keys=('solution', 'answer')) is not None
 
 
-def _extract_math_messages(example: Dict[str, Any]) -> Optional[List[Dict[str, str]]]:
-    problem = example.get('problem')
-    solution = example.get('solution', example.get('answer'))
-    if problem is None or solution is None:
+def _extract_math_messages(example: Dict[str, Any],
+                           *,
+                           prompt_keys: Tuple[str, ...] = ('problem', 'question'),
+                           solution_keys: Tuple[str, ...] = ('solution', 'answer')) -> Optional[List[Dict[str, str]]]:
+    prompt_and_solution = _resolve_math_prompt_and_solution(example, prompt_keys, solution_keys)
+    if prompt_and_solution is None:
         return None
-    problem_text = str(problem).strip()
-    solution_text = str(solution).strip()
-    if not problem_text or not solution_text:
-        return None
+    problem_text, solution_text = prompt_and_solution
     return [
         {'role': 'user', 'content': problem_text},
         {'role': 'assistant', 'content': solution_text},
@@ -66,6 +97,8 @@ def _extract_messages(example: Dict[str, Any], dataset_format: DatasetFormat = '
     """Extract a list of {role, content} messages from a dataset row."""
     if dataset_format == 'math':
         return _extract_math_messages(example)
+    if dataset_format == 'gsm8k':
+        return _extract_math_messages(example, prompt_keys=('question',), solution_keys=('answer',))
     if dataset_format == 'auto' and _looks_like_math(example):
         messages = _extract_math_messages(example)
         if messages is not None:
@@ -197,6 +230,7 @@ def _iter_pairs_from_file(dataset_path: str,
 def _iter_pairs_from_hf(dataset_id: str,
                         split: str,
                         streaming: bool,
+                        config: Optional[str] = None,
                         seed: Optional[int] = None,
                         dataset_format: DatasetFormat = 'auto') -> Iterable[Tuple[List[Dict[str, str]], str]]:
     try:
@@ -205,7 +239,23 @@ def _iter_pairs_from_hf(dataset_id: str,
         raise ImportError('HuggingFace dataset loading requires the `datasets` package. '
                           'Install it (e.g. `pip install datasets`).') from e
 
-    ds = load_dataset(dataset_id, split=split, streaming=streaming)
+    load_kwargs = dict(split=split, streaming=streaming)
+    if config is not None:
+        load_kwargs['name'] = config
+    ds = None
+    last_error = None
+    for candidate_split in _get_hf_split_candidates(dataset_id, split):
+        load_kwargs['split'] = candidate_split
+        try:
+            ds = load_dataset(dataset_id, **load_kwargs)
+            split = candidate_split
+            break
+        except Exception as e:
+            last_error = e
+    if ds is None:
+        assert last_error is not None
+        raise last_error
+
     if not streaming and seed is not None:
         try:
             ds = ds.shuffle(seed=seed)
@@ -284,6 +334,7 @@ def sample_requests(
     dataset_format: DatasetFormat = 'auto',
     hf_split: str = 'train',
     hf_streaming: bool = False,
+    hf_config: Optional[str] = None,
     hf_data_file: Optional[str] = None,
     hf_revision: Optional[str] = None,
     max_scan_examples: Optional[int] = None,
@@ -312,6 +363,7 @@ def sample_requests(
             pairs_iter = _iter_pairs_from_hf(dataset_path,
                                              split=hf_split,
                                              streaming=hf_streaming,
+                                             config=hf_config,
                                              seed=seed,
                                              dataset_format=dataset_format)
         except ImportError:
@@ -668,7 +720,7 @@ def parse_args():
     parser.add_argument('dataset',
                         type=str,
                         help='Dataset path (.json/.jsonl) or HuggingFace dataset ID '
-                        '(e.g. allenai/WildChat, nlile/hendrycks-MATH-benchmark).')
+                        '(e.g. allenai/WildChat, nlile/hendrycks-MATH-benchmark, openai/gsm8k).')
     parser.add_argument('model_path',
                         type=str,
                         help='the path of model in localhost or '
@@ -676,13 +728,19 @@ def parse_args():
     parser.add_argument('--dataset-format',
                         type=str,
                         default='auto',
-                        choices=['auto', 'sharegpt', 'wildchat', 'math'],
+                        choices=['auto', 'sharegpt', 'wildchat', 'math', 'gsm8k'],
                         help='Dataset format: ShareGPT JSON, WildChat (HF or JSON/JSONL), '
-                        'Hendrycks MATH, or auto-detect.')
+                        'Hendrycks MATH, GSM8K, or auto-detect.')
     parser.add_argument('--hf-split',
                         type=str,
-                        default='train',
-                        help='HuggingFace dataset split when `dataset` is a dataset ID (e.g. allenai/WildChat).')
+                        default=None,
+                        help='HuggingFace dataset split when `dataset` is a dataset ID '
+                        '(defaults to `train`, except `openai/gsm8k` uses `test`).')
+    parser.add_argument('--hf-config',
+                        type=str,
+                        default=None,
+                        help='Optional HuggingFace dataset config/subset name '
+                        '(e.g. `main` or `socratic` for `openai/gsm8k`).')
     hf_streaming_group = parser.add_mutually_exclusive_group()
     hf_streaming_group.add_argument('--hf-streaming',
                                     dest='hf_streaming',
@@ -711,7 +769,12 @@ def parse_args():
                         type=int,
                         help='Number of working threads to process the sampled prompts',
                         default=256)
-    parser.add_argument('-n', '--num-prompts', type=int, help='Number of prompts to process', default=5000)
+    parser.add_argument('-n',
+                        '--num-prompts',
+                        type=int,
+                        help='Target number of prompts to process; automatically capped by the number of '
+                        'available dataset samples.',
+                        default=5000)
     parser.add_argument('--no-stream-output', action='store_true', help='Use stream output')
     parser.add_argument('--skip-tokenize', action='store_true', help='Pre-tokenize input prompts before starting')
     parser.add_argument('--skip-detokenize', action='store_true', help='Skip detokenizing output tokens')
@@ -784,6 +847,15 @@ def parse_args():
     ArgumentHelper.communicator(tb_group)
 
     args = parser.parse_args()
+
+    if args.hf_split is None:
+        args.hf_split = GSM8K_SUPPORTED_SPLIT if _is_gsm8k_dataset(args.dataset) else 'train'
+
+    if _is_gsm8k_dataset(args.dataset):
+        if args.hf_split != GSM8K_SUPPORTED_SPLIT:
+            parser.error(f'`{GSM8K_DATASET_ID}` is supported with the `{GSM8K_SUPPORTED_SPLIT}` split only.')
+        if args.hf_config is None:
+            args.hf_config = GSM8K_DEFAULT_CONFIG
 
     if args.repeat_block_threshold < 2:
         parser.error('--repeat-block-threshold must be >= 2.')
@@ -864,16 +936,23 @@ def main():
         dataset_format=args.dataset_format,
         hf_split=args.hf_split,
         hf_streaming=args.hf_streaming,
+        hf_config=args.hf_config,
         hf_data_file=args.hf_data_file,
         hf_revision=args.hf_revision,
         max_scan_examples=args.max_scan_examples,
         seed=args.seed,
     )
+    actual_num_prompts = len(requests)
+    if actual_num_prompts == 0:
+        raise ValueError(f'No valid prompts were sampled from dataset `{args.dataset}`.')
+    if actual_num_prompts < args.num_prompts:
+        print(f'[INFO] Requested {args.num_prompts} prompts but only sampled {actual_num_prompts} from '
+              f'`{args.dataset}`; continuing with the available prompts.')
 
     stream_output = not args.no_stream_output
 
     profiler = Profiler(stream_output, [50, 75, 95, 99])
-    effective_concurrency = args.concurrency if args.concurrency < args.num_prompts else args.num_prompts
+    effective_concurrency = min(args.concurrency, actual_num_prompts)
 
     engine.process_request(requests,
                            profiler,
@@ -889,6 +968,8 @@ def main():
     # Get and display the used chat template name
     chat_template_name = engine.chat_template_config.model_name
     hyperparams = [('Concurrency', args.concurrency),
+                   ('Prompts requested', args.num_prompts),
+                   ('Prompts sampled', actual_num_prompts),
                    ('Max new tokens', args.max_new_tokens),
                    ('Stream output', str(stream_output).lower()),
                    ('Skip tokenize', str(args.skip_tokenize).lower()),
@@ -923,7 +1004,7 @@ def main():
             ('backend', args.backend),
             ('bs', args.concurrency),
             ('max_new_tokens', args.max_new_tokens),
-            ('num_prompts', args.num_prompts),
+            ('num_prompts', actual_num_prompts),
             ('chat_template', chat_template_name),
             ('repeat_block_detect', str(args.repeat_block_detect).lower()),
             ('repeat_block_window', repeat_window_str),

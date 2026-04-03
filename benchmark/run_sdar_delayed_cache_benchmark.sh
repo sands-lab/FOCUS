@@ -14,6 +14,7 @@
 # Usage: ./run_sdar_delayed_cache_benchmark.sh <dataset_id>
 # Example: ./run_sdar_delayed_cache_benchmark.sh anon8231489123/ShareGPT_Vicuna_unfiltered
 #          ./run_sdar_delayed_cache_benchmark.sh allenai/WildChat
+#          ./run_sdar_delayed_cache_benchmark.sh openai/gsm8k
 
 # Check if dataset argument is provided
 if [ -z "$1" ]; then
@@ -25,6 +26,14 @@ fi
 
 # Get dataset from command line argument
 DATASET=$1
+
+# Dataset-specific arguments
+DATASET_ARGS=()
+if [[ "${DATASET}" == *"hendrycks-MATH"* ]]; then
+    DATASET_ARGS+=(--dataset-format math)
+elif [[ "${DATASET}" == "openai/gsm8k" ]]; then
+    DATASET_ARGS+=(--dataset-format gsm8k --hf-split test --hf-config main)
+fi
 
 # Hardcoded SDAR model
 MODEL="JetLM/SDAR-8B-Chat-b32"
@@ -110,7 +119,7 @@ do
     # Execute the command with the current batch size
     # --concurrency parameter controls the batch size
     # Redirect stdout to OUTPUT_FILE and stderr to ERROR_FILE
-    python benchmark/profile_throughput.py ${DELAYED_CACHE_PARAMS} --concurrency ${BATCH_SIZE} ${DATASET} ${MODEL} > ${OUTPUT_FILE} 2> ${ERROR_FILE}
+    python benchmark/profile_throughput.py ${DELAYED_CACHE_PARAMS} "${DATASET_ARGS[@]}" --concurrency ${BATCH_SIZE} ${DATASET} ${MODEL} > ${OUTPUT_FILE} 2> ${ERROR_FILE}
     
     # Check if the command executed successfully
     if [ $? -eq 0 ]; then

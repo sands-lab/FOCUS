@@ -15,6 +15,7 @@
 # Usage: ./run_block_size_comparison.sh <dataset_id>
 # Example: ./run_block_size_comparison.sh anon8231489123/ShareGPT_Vicuna_unfiltered
 #          ./run_block_size_comparison.sh allenai/WildChat
+#          ./run_block_size_comparison.sh openai/gsm8k
 
 # Check if dataset argument is provided
 if [ -z "$1" ]; then
@@ -26,6 +27,14 @@ fi
 
 # Get dataset from command line argument
 DATASET=$1
+
+# Dataset-specific arguments
+DATASET_ARGS=()
+if [[ "${DATASET}" == *"hendrycks-MATH"* ]]; then
+    DATASET_ARGS+=(--dataset-format math)
+elif [[ "${DATASET}" == "openai/gsm8k" ]]; then
+    DATASET_ARGS+=(--dataset-format gsm8k --hf-split test --hf-config main)
+fi
 
 # Create results directory if it doesn't exist
 mkdir -p ./results
@@ -112,7 +121,7 @@ do
         # Execute the command with the current batch size
         # --concurrency parameter controls the batch size
         # Redirect stdout to OUTPUT_FILE and stderr to ERROR_FILE
-        python benchmark/profile_throughput.py ${FOCUS_PARAMS} --concurrency ${BATCH_SIZE} ${DATASET} ${MODEL} > ${OUTPUT_FILE} 2> ${ERROR_FILE}
+        python benchmark/profile_throughput.py ${FOCUS_PARAMS} "${DATASET_ARGS[@]}" --concurrency ${BATCH_SIZE} ${DATASET} ${MODEL} > ${OUTPUT_FILE} 2> ${ERROR_FILE}
         
         # Check if the command executed successfully
         if [ $? -eq 0 ]; then
@@ -157,7 +166,7 @@ do
         # Execute the command with the current batch size
         # --concurrency parameter controls the batch size
         # Redirect stdout to OUTPUT_FILE and stderr to ERROR_FILE
-        python benchmark/profile_throughput.py ${BASE_PARAMS} --concurrency ${BATCH_SIZE} ${DATASET} ${MODEL} > ${OUTPUT_FILE} 2> ${ERROR_FILE}
+        python benchmark/profile_throughput.py ${BASE_PARAMS} "${DATASET_ARGS[@]}" --concurrency ${BATCH_SIZE} ${DATASET} ${MODEL} > ${OUTPUT_FILE} 2> ${ERROR_FILE}
         
         # Check if the command executed successfully
         if [ $? -eq 0 ]; then

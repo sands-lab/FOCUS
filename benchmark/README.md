@@ -51,6 +51,22 @@ python profile_throughput.py \
 Note: loading HuggingFace datasets requires the `datasets` package.
 By default, HuggingFace dataset IDs are loaded in non-streaming mode for accurate shuffling; use `--hf-streaming` to enable streaming.
 
+### GSM8K
+
+`profile_throughput.py` also supports the GSM8K evaluation split from HuggingFace:
+
+```bash
+python profile_throughput.py \
+  openai/gsm8k \
+  /path/to/your/model \
+  --dataset-format gsm8k \
+  --hf-split test \
+  --hf-config main \
+  --concurrency 64
+```
+
+`openai/gsm8k` defaults to the `main` config and `test` split. If your local `datasets` metadata exposes the evaluation split as `validation`, the loader falls back automatically.
+
 ## profile restful api
 
 `profile_restful_api.py` is used to do benchmark on api server.

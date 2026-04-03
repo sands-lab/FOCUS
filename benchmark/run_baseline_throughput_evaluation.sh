@@ -15,6 +15,7 @@
 # Example: ./run_baseline_throughput_evaluation.sh anon8231489123/ShareGPT_Vicuna_unfiltered JetLM/SDAR-8B-Chat-b32
 #          ./run_baseline_throughput_evaluation.sh allenai/WildChat inclusionAI/LLaDA2.0-mini
 #          ./run_baseline_throughput_evaluation.sh nlile/hendrycks-MATH-benchmark <model_id>
+#          ./run_baseline_throughput_evaluation.sh openai/gsm8k <model_id>
 
 # Check if dataset argument is provided
 if [ -z "$1" ]; then
@@ -42,6 +43,8 @@ MODEL=$2
 DATASET_ARGS=()
 if [[ "${DATASET}" == *"hendrycks-MATH"* ]]; then
     DATASET_ARGS+=(--dataset-format math)
+elif [[ "${DATASET}" == "openai/gsm8k" ]]; then
+    DATASET_ARGS+=(--dataset-format gsm8k --hf-split test --hf-config main)
 fi
 
 # Create results directory if it doesn't exist
@@ -57,7 +60,8 @@ BATCH_SIZES=(32 64 128 256)
 # --backend pytorch: Use PyTorch as the backend
 # --skip-tokenize: Skip tokenization step
 # --skip-detokenize: Skip detokenization step
-# --num-prompts 5000: Number of prompts to process
+# --num-prompts 5000: Target number of prompts to process; smaller datasets
+#   such as GSM8K are automatically capped by available samples
 # --use-uvloop: Use uvloop for async operations
 # --dllm-block-length 32: DLLM block length parameter
 # --dllm-denoising-steps 32: DLLM denoising steps
