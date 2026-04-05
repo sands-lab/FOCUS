@@ -58,6 +58,7 @@ Based on LMDeploy, the main FOCUS-related implementations are in:
 FOCUS relies on Triton CUDA kernels and is intended for CUDA GPUs.
 LMDeploy's default prebuilt wheels target CUDA 12 (since v0.3.0); RTX 50-series GPUs require CUDA 12.8 wheels.
 CUDA 11+ is supported when building from source, but ensure your local CUDA toolkit matches your PyTorch/Triton stack.
+We have only tested FOCUS flow with Python 3.13; other Python versions 3.9-3.12 should also work but are not covered by our tests.
 
 1. Create and activate a Python environment.
 2. Install runtime dependencies:
