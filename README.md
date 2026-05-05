@@ -21,6 +21,9 @@
   <a href="https://arxiv.org/abs/2601.23278">
     <img src="https://img.shields.io/badge/arXiv-2601.23278-b31b1b.svg" alt="Paper on arXiv"/>
   </a>
+  <a href="https://focus-inference.github.io/">
+    <img src="https://img.shields.io/badge/Project%20Page-FOCUS-2f6f9f.svg" alt="Project page"/>
+  </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/>
   </a>
