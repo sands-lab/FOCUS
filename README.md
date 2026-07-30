@@ -134,12 +134,13 @@ For generation quality evaluation of SDAR/LLaDA2.0-mini models, see [`opencompas
 If you find FOCUS useful in your work, please cite:
 
 ```bibtex
-@article{liang2026focus,
-  title   = {FOCUS: DLLMs Know How to Tame Their Compute Bound},
-  author  = {Kaihua Liang and Xin Tan and An Zhong and Hong Xu and Marco Canini},
-  journal = {arXiv preprint arXiv:2601.23278},
-  year    = {2026},
-  url     = {https://arxiv.org/abs/2601.23278}
+@inproceedings{
+liang2026focus,
+title={{FOCUS}: {DLLM}s Know How to Tame Their Compute Bound},
+author={Kaihua Liang and Xin Tan and An Zhong and Hong Xu and Marco Canini},
+booktitle={Forty-third International Conference on Machine Learning},
+year={2026},
+url={https://openreview.net/forum?id=40fUEdwvH3}
 }
 ```
 

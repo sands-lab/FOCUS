@@ -1,0 +1,6 @@
+# inclusionAI/LLaDA2.0-mini
+block_size: 32
+threshold: 0.8
+enable_delayed_cache: true
+enable_focus: true
+focus_alpha: 1.5
