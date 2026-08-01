@@ -19,7 +19,6 @@ LMDEPLOY_PYTHON="${LMDEPLOY_PYTHON:-${PYTHON_BIN}}"
 SGLANG_PYTHON="${SGLANG_PYTHON:-${PYTHON_BIN}}"
 OPENCOMPASS_PYTHON="${OPENCOMPASS_PYTHON:-${PYTHON_BIN}}"
 PORT="${PORT:-30000}"
-MEM_FRACTION_STATIC="${MEM_FRACTION_STATIC:-0.85}"
 ATTENTION_BACKEND="${ATTENTION_BACKEND:-flashinfer}"
 
 mkdir -p "${RESULTS_ROOT}"
@@ -244,7 +243,6 @@ EOF
         --host 127.0.0.1 \
         --port "${PORT}" \
         --trust-remote-code \
-        --mem-fraction-static "${MEM_FRACTION_STATIC}" \
         --max-running-requests "${MAX_RUNNING_REQUESTS}" \
         --attention-backend "${ATTENTION_BACKEND}" \
         --cuda-graph-backend-decode disabled \

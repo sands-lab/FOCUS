@@ -6,7 +6,6 @@ import torch
 
 # ruff: noqa: E402
 
-from sglang.test.ci.ci_register import register_cpu_ci
 from sglang.test.test_utils import CustomTestCase, maybe_stub_sgl_kernel
 
 maybe_stub_sgl_kernel()
@@ -40,9 +39,6 @@ from sglang.srt.mem_cache.common import maybe_cache_unfinished_req
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch, ForwardMode
 from sglang.srt.sampling.sampling_params import SamplingParams
 from sglang.srt.utils.common import Range
-
-register_cpu_ci(est_time=2, suite="stage-a-test-cpu")
-
 
 class _DummyDllmReq(ReqDllmMixin):
     def set_extend_range(self, start: int, end: int) -> None:

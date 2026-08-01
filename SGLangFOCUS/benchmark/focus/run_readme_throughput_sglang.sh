@@ -14,6 +14,7 @@ set -u
 #   MAX_NEW_TOKENS=2048
 #   RESULTS_DIR=results/focus_sglang
 #   PYTHON_BIN=/path/to/python
+#   LOG_LEVEL=warning
 
 DATASET=${1:-anon8231489123/ShareGPT_Vicuna_unfiltered}
 MODEL=${2:-JetLM/SDAR-8B-Chat-b32}
@@ -24,13 +25,14 @@ BATCH_SIZES=${BATCH_SIZES:-"32 64 128 256"}
 NUM_PROMPTS=${NUM_PROMPTS:-5000}
 MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-2048}
 RESULTS_DIR=${RESULTS_DIR:-results/focus_sglang}
-MEM_FRACTION_STATIC=${MEM_FRACTION_STATIC:-0.9}
 ATTENTION_BACKEND=${ATTENTION_BACKEND:-flashinfer}
 PYTHON_BIN=${PYTHON_BIN:-python}
+LOG_LEVEL=${LOG_LEVEL:-warning}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "${SCRIPT_DIR}/../.." && pwd)
 export PYTHONPATH="${REPO_ROOT}/python:${PYTHONPATH:-}"
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
 if [[ "${PYTHON_BIN}" == */bin/python* ]]; then
   PYTHON_ENV_DIR=$(cd "$(dirname "${PYTHON_BIN}")/.." && pwd)
@@ -111,8 +113,8 @@ run_case() {
     --dllm-confidence-threshold "${threshold}"
     --dllm-focus-alpha "${alpha}"
     --concurrency "${batch_size}"
-    --mem-fraction-static "${MEM_FRACTION_STATIC}"
     --attention-backend "${ATTENTION_BACKEND}"
+    --log-level "${LOG_LEVEL}"
     --output-dir "${RESULTS_DIR}"
     --csv "${RESULTS_DIR}/profile_throughput_sglang.csv"
     --json-result "${json_file}"

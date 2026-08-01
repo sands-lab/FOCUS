@@ -5058,6 +5058,9 @@ class ServerArgs:
           and set mem_fraction_static = (GPU memory capacity - reserved_mem) / GPU memory capacity.
 
           The coefficient 1.5 is a heuristic value, in the future, we can do better estimation by looking at the model types, hidden sizes or even do a dummy run.
+          Diffusion LLMs additionally materialize an FP32 logits buffer for a
+          full diffusion block, so automatic sizing reserves that buffer based
+          on the configured block size, concurrency, and vocabulary size.
         """
         decode_cuda_graph_config = self.cuda_graph_config.decode
         prefill_cuda_graph_config = self.cuda_graph_config.prefill
@@ -5219,6 +5222,21 @@ class ServerArgs:
                     reserved_mem = max(reserved_mem, 10 * 1024)
                 # Reserve headroom for DeepEP all-to-all buffers on top of the floor.
                 reserved_mem += self.reserve_for_deepep_a2a_mb()
+
+                if self.dllm_algorithm is not None:
+                    from sglang.srt.dllm.config import DllmConfig
+
+                    dllm_config = DllmConfig.from_server_args(self)
+                    vocab_size = self.get_model_config().hf_config.vocab_size
+                    # The DLLM logits processor converts the complete logits
+                    # tensor to FP32 before selecting decoded tokens.
+                    reserved_mem += (
+                        dllm_config.max_running_requests
+                        * dllm_config.block_size
+                        * vocab_size
+                        * 4
+                        / (1024 * 1024)
+                    )
 
             self.mem_fraction_static = (
                 round((gpu_mem - reserved_mem) / gpu_mem, 3)

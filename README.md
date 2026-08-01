@@ -37,6 +37,10 @@ FOCUS is an inference system for diffusion LLMs (DLLMs) built on top of the [LMD
 
 Using attention-derived token importance delta from early layers, this training-free solution predicts which tokens are likely decodable and evicts non-decodable ones on the fly to avoid redundant computation, increasing the effective batch size and enabling scalable throughput. FOCUS achieves up to **3.52× throughput** improvement without compromising quality across benchmarks. This repo contains the LMDeploy-based implementation for [SDAR](https://github.com/JetAstra/SDAR) and [LLaDA2.0](https://github.com/inclusionAI/LLaDA2.0)-mini.
 
+An [SGLang-based implementation](SGLangFOCUS/README.md) is also included,
+based on official SGLang commit
+[`ec4a7fa2b`](https://github.com/sgl-project/sglang/commit/ec4a7fa2b78841de5c28f57d272c7f9404ec1ad8).
+
 ## Efficiency Improvement
 
 ![Efficiency improvement](assets/Efficiency.svg)

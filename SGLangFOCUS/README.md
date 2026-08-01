@@ -1,35 +1,41 @@
-## Design Overview
-
-FOCUS is an inference system for diffusion LLMs (DLLMs). During block
-diffusion decoding, many tokens are processed even though only a small subset
-is ready to be decoded. FOCUS uses attention-derived importance from early
-layers to retain likely decodable tokens and evict the rest, reducing redundant
-computation.
-
-This repository implements FOCUS on top of [SGLang](https://github.com/sgl-project/sglang).
-It supports SDAR and LLaDA2.0 models and preserves SGLang's OpenAI-compatible
-serving API. The SDAR recipe below is the tested path.
-
-## Key Implementation Files
-
-- [`python/sglang/srt/dllm/config.py`](python/sglang/srt/dllm/config.py): DLLM and FOCUS configuration.
-- [`python/sglang/srt/dllm/mixin/scheduler.py`](python/sglang/srt/dllm/mixin/scheduler.py): FOCUS result handling and KV-cache lifecycle.
-- [`python/sglang/srt/managers/schedule_batch.py`](python/sglang/srt/managers/schedule_batch.py): DLLM prefix and block scheduling.
-- [`python/sglang/srt/managers/schedule_policy.py`](python/sglang/srt/managers/schedule_policy.py): FDFO staging and admission policy.
-- [`python/sglang/srt/mem_cache/common.py`](python/sglang/srt/mem_cache/common.py): KV-cache release for diffusion requests.
-- [`python/sglang/srt/models/sdar.py`](python/sglang/srt/models/sdar.py) and [`python/sglang/srt/models/llada2.py`](python/sglang/srt/models/llada2.py): FOCUS-aware model execution.
+This implementation is based on official SGLang commit
+[`ec4a7fa2b`](https://github.com/sgl-project/sglang/commit/ec4a7fa2b78841de5c28f57d272c7f9404ec1ad8).
 
 ## Install (CUDA)
 
-Create a CUDA-capable Python environment that matches your PyTorch and CUDA
-installation, then install this checkout:
+From the FOCUS repository root, enter the SGLang implementation:
 
 ```bash
-pip install -e ./python
+cd SGLangFOCUS
 ```
 
-The examples below use `PYTHONPATH=python` so that the launcher always uses
-this checkout.
+Install with:
+
+```bash
+SGLANG_BUILD_RUST_EXTS=none python -m pip install -e ./python
+```
+
+This avoids requiring a Cargo toolchain. If you need SGLang's optional Rust
+extensions, install Rust and omit `SGLANG_BUILD_RUST_EXTS=none`.
+
+SGLang installs CUDA 13 packages by default. For CUDA 12, replace the GPU
+packages after the editable install:
+
+```bash
+python -m pip install --force-reinstall \
+  torch==2.11.0 torchaudio==2.11.0 torchvision \
+  --index-url https://download.pytorch.org/whl/cu129
+
+python -m pip install --force-reinstall --no-deps \
+  sglang-kernel==0.4.5 \
+  --index-url https://docs.sglang.ai/whl/cu129/
+
+python -m pip install --force-reinstall --no-deps \
+  sgl-deep-gemm==0.1.5 \
+  --index-url https://docs.sglang.ai/whl/cu129/
+```
+
+The commands below set `PYTHONPATH=python` to load SGLang from this directory.
 
 ## Run FOCUS with SGLang
 
@@ -50,15 +56,11 @@ PYTHONPATH=python python -m sglang.launch_server \
   --host 0.0.0.0 \
   --port 30000 \
   --tp-size 1 \
-  --mem-fraction-static 0.7 \
   --disable-cuda-graph \
   --dllm-algorithm LowConfidence \
   --dllm-algorithm-config configs/sdar_focus.yaml \
   --dllm-fdfo
 ```
-
-FOCUS uses delayed KV-cache commits. CUDA graphs are disabled for this mode
-because the active token set changes between diffusion passes.
 
 Send requests through SGLang's OpenAI-compatible API:
 
@@ -78,9 +80,9 @@ To run the original DLLM or delayed-cache baseline, set `enable_focus` and
 
 ## Benchmarking
 
-Throughput results are written to `./results/focus_sglang`. Run the commands
-from the repository root. Set `PYTHON_BIN` when the SGLang environment does
-not use `python` by default.
+Generated results are stored locally under `./results/focus_sglang`, which is
+ignored by Git. Run the commands from the repository root. Set `PYTHON_BIN`
+when the SGLang environment does not use `python` by default.
 
 - FOCUS throughput: [`benchmark/focus/run_readme_throughput_sglang.sh`](benchmark/focus/run_readme_throughput_sglang.sh)
 
@@ -135,18 +137,35 @@ Dataset notes:
 
 The included accuracy driver performs the complete workflow: it starts an
 SGLang server, waits for it to become ready, runs OpenCompass through the
-OpenAI-compatible API, then stops the server. Run one command for a selected
-mode (`baseline`, `delayed`, or `focus`):
+OpenAI-compatible API, then stops the server.
+
+Create and activate a separate Python 3.10 environment for OpenCompass, then
+install:
 
 ```bash
-benchmark/focus/run_opencompass_accuracy_compare.sh sglang sdar focus
+python -m pip install --upgrade pip
+python -m pip install \
+  "setuptools==80.9.0" \
+  "opencompass==0.5.1" \
+  "human-eval==1.0.3" \
+  "filelock==3.20.0" \
+  "langdetect==1.0.9" \
+  "math-verify[antlr4_11_0]==0.9.0" \
+  "latex2sympy2-extended==1.11.0"
 ```
 
-The driver uses `python` from `PATH` by default. Set `PYTHON_BIN` to use one
-different environment, or set `SGLANG_PYTHON` and `OPENCOMPASS_PYTHON`
-separately when needed; no separate manual server command is required. Set
-`OPENCOMPASS_ROOT` if the OpenCompass checkout is not located at
-`../opencompass-0.5.1.post1`.
+With the SGLang environment active, run one command for a selected mode
+(`baseline`, `delayed`, or `focus`):
+
+```bash
+OPENCOMPASS_PYTHON=/path/to/opencompass-env/bin/python \
+  benchmark/focus/run_opencompass_accuracy_compare.sh sglang sdar focus
+```
+
+The driver uses `python` from `PATH` for SGLang. Set `SGLANG_PYTHON` if the
+SGLang environment is not active. No separate manual server command is
+required. Set `OPENCOMPASS_ROOT` if the included OpenCompass source is not
+located at `../opencompass-0.5.1.post1`.
 
 ## Citation
 

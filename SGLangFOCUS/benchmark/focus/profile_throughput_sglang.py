@@ -417,6 +417,17 @@ def _safe_basename(value: str) -> str:
     return Path(value.rstrip("/")).name.replace(" ", "_")
 
 
+def _resolve_hf_snapshot(model: str, revision: Optional[str] = None) -> str:
+    """Download a Hub model once and give SGLang workers a local path."""
+    local_path = Path(model).expanduser()
+    if local_path.exists():
+        return str(local_path.resolve())
+
+    from huggingface_hub import snapshot_download
+
+    return str(snapshot_download(repo_id=model, revision=revision))
+
+
 def _top_k_for_sampling(top_k: int, temperature: float) -> int:
     if top_k == 0:
         return -1
@@ -551,6 +562,16 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    display_model_path = args.model_path
+    display_tokenizer_path = args.tokenizer_path
+    args.model_path = _resolve_hf_snapshot(args.model_path, args.revision)
+    if display_tokenizer_path == display_model_path:
+        args.tokenizer_path = args.model_path
+    else:
+        args.tokenizer_path = _resolve_hf_snapshot(
+            display_tokenizer_path, args.revision
+        )
+
     tokenizer = AutoTokenizer.from_pretrained(
         args.tokenizer_path,
         trust_remote_code=getattr(args, "trust_remote_code", True),
@@ -610,7 +631,7 @@ def main() -> None:
 
     print("SGLang FOCUS throughput configuration")
     print(f"  dataset                  : {args.dataset}")
-    print(f"  model                    : {args.model_path}")
+    print(f"  model                    : {display_model_path}")
     print(f"  prompts requested/sampled: {args.num_prompts}/{len(requests)}")
     print(f"  concurrency              : {args.concurrency}")
     print(f"  max new tokens           : {args.max_new_tokens}")
@@ -645,8 +666,8 @@ def main() -> None:
         "backend": "sglang",
         "dataset": args.dataset,
         "dataset_name": _safe_basename(args.dataset),
-        "model": args.model_path,
-        "model_name": _safe_basename(args.model_path),
+        "model": display_model_path,
+        "model_name": _safe_basename(display_model_path),
         "successful_requests": successful_requests,
         "requested_prompts": args.num_prompts,
         "sampled_prompts": len(requests),
@@ -693,7 +714,7 @@ def main() -> None:
         json_result = str(
             output_dir
             / (
-                f"{kind}_{_safe_basename(args.dataset)}_{_safe_basename(args.model_path)}"
+                f"{kind}_{_safe_basename(args.dataset)}_{_safe_basename(display_model_path)}"
                 f"_batch_{args.concurrency}.json"
             )
         )
