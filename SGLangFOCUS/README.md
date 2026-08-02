@@ -80,9 +80,7 @@ To run the original DLLM or delayed-cache baseline, set `enable_focus` and
 
 ## Benchmarking
 
-Generated results are stored locally under `./results/focus_sglang`, which is
-ignored by Git. Run the commands from the repository root. Set `PYTHON_BIN`
-when the SGLang environment does not use `python` by default.
+Generated results are stored locally under `./results/focus_sglang`. Run the commands from this the SGLangFOCUS root. Set `PYTHON_BIN` if needed.
 
 - FOCUS throughput: [`benchmark/focus/run_readme_throughput_sglang.sh`](benchmark/focus/run_readme_throughput_sglang.sh)
 
@@ -135,7 +133,7 @@ Dataset notes:
 
 ## OpenCompass Evaluation
 
-The included accuracy driver performs the complete workflow: it starts an
+The included quality evaluation script performs the complete workflow: it starts an
 SGLang server, waits for it to become ready, runs OpenCompass through the
 OpenAI-compatible API, then stops the server.
 
